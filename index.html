@@ -180,6 +180,23 @@
     .help-btn { background: none; border: 1px solid var(--border); border-radius: 50%; width: 28px; height: 28px; color: var(--muted); font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
     .help-btn:active { background: rgba(255,255,255,0.1); }
 
+    /* ── ROUND PICKER ── */
+    .round-center { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+    .round-label-btn { background: none; border: none; color: var(--gold2); font-family: 'Pirata One', cursive; font-size: 1.3rem; letter-spacing: 1px; cursor: pointer; padding: 2px 10px; border-radius: 6px; line-height: 1.2; }
+    .round-label-btn:active { background: rgba(200,148,10,0.15); }
+    .round-label-hint { font-size: 0.58rem; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+    .tricks-counter { font-size: 0.68rem; letter-spacing: 1px; }
+    .tricks-counter.ok { color: var(--muted); }
+    .tricks-counter.exact { color: var(--green2); }
+    .tricks-counter.over { color: var(--red2); font-weight: 700; }
+    .round-pick-grid { display: grid; grid-template-columns: repeat(5,1fr); gap: 8px; padding: 4px 0 8px; }
+    .round-pick-btn { padding: 12px 4px; border-radius: 8px; border: 1px solid var(--border); background: var(--card2); color: var(--muted); font-family: 'Cinzel', serif; font-size: 0.85rem; cursor: pointer; min-height: 48px; text-align: center; line-height: 1.3; }
+    .round-pick-btn.played { color: var(--cream); border-color: var(--muted); }
+    .round-pick-btn.current { border-color: var(--gold); color: var(--gold2); font-weight: 700; background: rgba(200,148,10,0.12); }
+    .round-pick-btn.viewing { outline: 2px solid var(--gold2); outline-offset: 2px; }
+    .round-pick-btn:active { background: rgba(200,148,10,0.2); }
+    .round-pick-note { font-size: 0.72rem; color: var(--muted); text-align: center; padding: 4px 0 6px; line-height: 1.5; }
+
     /* ── QR SHARE MODAL ── */
     #qr-canvas-wrap { display: flex; justify-content: center; padding: 12px 0 6px; }
     #qr-canvas-wrap canvas, #qr-canvas-wrap img { border-radius: 10px; border: 4px solid var(--gold); }
@@ -271,7 +288,11 @@
     <button class="header-btn danger" onclick="confirmNewGame()" title="New Game">🗑️</button>
     <div class="round-nav">
       <button class="round-nav-btn" id="btn-prev-round" onclick="changeViewRound(-1)">‹</button>
-      <div class="round-title" id="round-label">Round 1</div>
+      <div class="round-center">
+        <button class="round-label-btn" id="round-label" onclick="openRoundPicker()">Round 1</button>
+        <div class="round-label-hint">tap to jump</div>
+        <div class="tricks-counter ok" id="tricks-counter"></div>
+      </div>
       <button class="round-nav-btn" id="btn-next-round" onclick="changeViewRound(1)">›</button>
     </div>
     <button class="header-btn" onclick="openModal('modal-scoreboard')" title="Scoreboard">📊</button>
@@ -312,6 +333,19 @@
     <div class="modal-title">Bonus Reference</div>
     <div class="modal-body" id="bonus-body"></div>
     <button class="modal-close" onclick="closeModal('modal-bonus')">Close</button>
+  </div>
+</div>
+
+<!-- ROUND PICKER MODAL -->
+<div class="modal-backdrop" id="modal-round-picker" onclick="backdropClose(event,'modal-round-picker')">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Jump to Round</div>
+    <div class="modal-body">
+      <div class="round-pick-note">Tap any round to jump directly to it.<br>Skipped rounds will have empty scores.</div>
+      <div class="round-pick-grid" id="round-pick-grid"></div>
+    </div>
+    <button class="modal-close" onclick="closeModal('modal-round-picker')">Cancel</button>
   </div>
 </div>
 
@@ -690,6 +724,23 @@ function refreshPlayerCard(playerIdx) {
   if (cannonEl) cannonEl.classList.toggle('active', pd.cannonball);
 }
 
+// ── TRICKS TOTAL HELPERS ──
+function getTricksTotal(vr) {
+  return state.rounds[vr-1].reduce((sum, p) => sum + (p.tricks || 0), 0);
+}
+
+function refreshTricksCounter() {
+  const vr = state.viewRound;
+  const total = getTricksTotal(vr);
+  const avail = vr;
+  const el = document.getElementById('tricks-counter');
+  if (!el) return;
+  if (total === 0) { el.textContent = ''; el.className = 'tricks-counter ok'; return; }
+  if (total < avail)  { el.textContent = `${total}/${avail} tricks`; el.className = 'tricks-counter ok'; }
+  else if (total === avail) { el.textContent = `${total}/${avail} ✓`; el.className = 'tricks-counter exact'; }
+  else                { el.textContent = `${total}/${avail} ⚠ over!`; el.className = 'tricks-counter over'; }
+}
+
 // ── STEPPERS ──
 function adjustValue(playerIdx, field, delta) {
   const vr = state.viewRound;
@@ -700,10 +751,17 @@ function adjustValue(playerIdx, field, delta) {
     const cur = pd.bid !== null ? pd.bid : 0;
     pd.bid = Math.max(0, Math.min(maxVal, cur + delta));
   } else if (field === 'tricks') {
-    pd.tricks = Math.max(0, Math.min(maxVal, pd.tricks + delta));
+    const proposed = Math.max(0, Math.min(maxVal, pd.tricks + delta));
+    // Enforce: total tricks across all players cannot exceed cards dealt
+    if (delta > 0) {
+      const otherTricks = state.rounds[vr-1].reduce((sum, p, i) => sum + (i === playerIdx ? 0 : p.tricks || 0), 0);
+      if (otherTricks + proposed > vr) return; // would exceed available tricks
+    }
+    pd.tricks = proposed;
   }
   saveState();
   refreshPlayerCard(playerIdx);
+  refreshTricksCounter();
 }
 
 function adjustBonus(playerIdx, delta) {
@@ -747,25 +805,62 @@ function buildDots() {
 
 function changeViewRound(delta) {
   const newVR = state.viewRound + delta;
-  if (newVR < 1 || newVR > state.round) return;
-  state.viewRound = newVR;
-  rebuildCarousel();
-  refreshRoundUI();
+  if (newVR < 1 || newVR > 10) return;
+  jumpToRound(newVR);
 }
 
 function refreshRoundUI() {
   const vr = state.viewRound;
   document.getElementById('round-label').textContent = `Round ${vr}`;
   document.getElementById('btn-prev-round').disabled = vr <= 1;
-  document.getElementById('btn-next-round').disabled = vr >= state.round;
+  document.getElementById('btn-next-round').disabled = vr >= 10;
   const nextBtn = document.getElementById('btn-next');
   if (vr < state.round) {
     nextBtn.textContent = '← Current Round';
-    nextBtn.onclick = () => { state.viewRound = state.round; rebuildCarousel(); refreshRoundUI(); };
+    nextBtn.onclick = () => jumpToRound(state.round);
   } else {
     nextBtn.textContent = state.round >= 10 ? 'End Game ⚔' : 'Next Round →';
     nextBtn.onclick = endRound;
   }
+  refreshTricksCounter();
+}
+
+// ── ROUND PICKER ──
+function openRoundPicker() {
+  const grid = document.getElementById('round-pick-grid');
+  let html = '';
+  for (let r = 1; r <= 10; r++) {
+    const classes = [
+      'round-pick-btn',
+      r <= state.round ? 'played' : '',
+      r === state.round ? 'current' : '',
+      r === state.viewRound ? 'viewing' : ''
+    ].filter(Boolean).join(' ');
+    const cards = r;
+    html += `<button class="${classes}" onclick="jumpToRound(${r});closeModal('modal-round-picker')">
+      <div>${r}</div><div style="font-size:0.6rem;opacity:0.6">${cards}c</div>
+    </button>`;
+  }
+  grid.innerHTML = html;
+  openModal('modal-round-picker');
+}
+
+function jumpToRound(r) {
+  if (r < 1 || r > 10) return;
+  // If jumping ahead, advance state.round and fill in missing round data
+  if (r > state.round) {
+    state.round = r;
+    for (let i = 0; i < r; i++) {
+      if (!state.rounds[i]) {
+        state.rounds[i] = state.players.map(() => ({ bid: null, tricks: 0, bonus: 0, cannonball: false }));
+      }
+    }
+  }
+  state.viewRound = r;
+  state.currentPlayer = 0;
+  saveState();
+  rebuildCarousel();
+  refreshRoundUI();
 }
 
 function rebuildCarousel() {
@@ -780,6 +875,7 @@ function rebuildCarousel() {
   });
   navigateToPlayer(state.currentPlayer, false);
   setupTouchEvents();
+  refreshTricksCounter();
 }
 
 function endRound() {
