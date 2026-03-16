@@ -8,6 +8,7 @@
   <title>Skull King Scoring</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Pirata+One&family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -178,6 +179,45 @@
     .bonus-row-label { display: flex; align-items: center; gap: 6px; }
     .help-btn { background: none; border: 1px solid var(--border); border-radius: 50%; width: 28px; height: 28px; color: var(--muted); font-size: 0.8rem; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
     .help-btn:active { background: rgba(255,255,255,0.1); }
+
+    /* ── QR SHARE MODAL ── */
+    #qr-canvas-wrap { display: flex; justify-content: center; padding: 12px 0 6px; }
+    #qr-canvas-wrap canvas, #qr-canvas-wrap img { border-radius: 10px; border: 4px solid var(--gold); }
+    .qr-url { font-size: 0.65rem; color: var(--muted); text-align: center; word-break: break-all; padding: 6px 0; }
+    .qr-note { font-size: 0.78rem; color: var(--muted); text-align: center; padding: 4px 0 10px; line-height: 1.4; }
+    .qr-actions { display: flex; gap: 8px; padding: 4px 0; }
+    .btn-qr-refresh { flex: 1; padding: 12px; background: var(--card2); border: 1px solid var(--gold); border-radius: 10px; color: var(--gold); font-family: 'Cinzel', serif; font-size: 0.85rem; cursor: pointer; min-height: 44px; }
+    .btn-qr-copy { flex: 1; padding: 12px; background: linear-gradient(135deg, var(--gold) 0%, var(--gold2) 100%); border: none; border-radius: 10px; color: #1a0a00; font-family: 'Cinzel', serif; font-size: 0.85rem; cursor: pointer; min-height: 44px; font-weight: 700; }
+    .btn-qr-refresh:active, .btn-qr-copy:active { opacity: 0.8; }
+    .copy-confirm { text-align: center; font-size: 0.75rem; color: var(--green2); min-height: 18px; padding: 2px 0; }
+
+    /* ── READ-ONLY VIEW ── */
+    #screen-readonly { overflow-y: auto; padding: calc(var(--safe-top) + 16px) 16px calc(var(--safe-bottom) + 24px); gap: 14px; }
+    .ro-header { text-align: center; }
+    .ro-title { font-family: 'Pirata One', cursive; font-size: 2rem; color: var(--gold2); text-shadow: 0 2px 10px rgba(200,148,10,0.4); }
+    .ro-round { font-size: 0.78rem; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; margin-top: 4px; }
+    .ro-snapshot { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 6px 12px; background: rgba(155,26,26,0.15); border: 1px solid var(--red); border-radius: 20px; font-size: 0.72rem; color: var(--red2); letter-spacing: 1px; }
+    .ro-table-wrap { overflow-x: auto; }
+    .ro-table { border-collapse: collapse; width: 100%; min-width: 280px; }
+    .ro-table th { background: var(--card2); color: var(--gold); padding: 8px 10px; text-align: left; border: 1px solid var(--border); font-size: 0.8rem; white-space: nowrap; }
+    .ro-table th.num { text-align: right; }
+    .ro-table td { padding: 7px 10px; border: 1px solid var(--border); color: var(--cream); font-size: 0.85rem; }
+    .ro-table td.num { text-align: right; font-family: 'Cinzel', serif; }
+    .ro-table td.neg { color: var(--red2); }
+    .ro-table td.gold { color: var(--gold2); font-weight: 700; }
+    .ro-table tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+    .ro-table tr.cur td { background: rgba(200,148,10,0.08); }
+    .ro-table tr.total-row td { background: var(--card2); font-weight: 700; font-family: 'Cinzel', serif; }
+    .ro-player-block { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; }
+    .ro-player-name { font-family: 'Pirata One', cursive; font-size: 1.2rem; color: var(--gold2); margin-bottom: 8px; }
+    .ro-standings { display: flex; flex-direction: column; gap: 8px; }
+    .ro-standing-row { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; }
+    .ro-standing-row.first { border-color: var(--gold); background: rgba(200,148,10,0.1); }
+    .ro-rank { font-size: 1.2rem; min-width: 28px; }
+    .ro-name { flex: 1; font-size: 0.95rem; color: var(--cream); }
+    .ro-score { font-family: 'Cinzel', serif; font-size: 1.1rem; font-weight: 700; color: var(--gold2); }
+    .ro-footer { text-align: center; font-size: 0.72rem; color: var(--muted); line-height: 1.6; }
+    .btn-ro-back { background: none; border: 1px solid var(--border); border-radius: 10px; color: var(--muted); font-family: 'Cinzel', serif; font-size: 0.8rem; padding: 10px 20px; cursor: pointer; min-height: 44px; }
   </style>
 </head>
 <body>
@@ -235,6 +275,7 @@
       <button class="round-nav-btn" id="btn-next-round" onclick="changeViewRound(1)">›</button>
     </div>
     <button class="header-btn" onclick="openModal('modal-scoreboard')" title="Scoreboard">📊</button>
+    <button class="header-btn" onclick="openShareModal()" title="Share QR">📷</button>
   </div>
   <div class="carousel-outer" id="carousel-outer">
     <div class="carousel-wrap" id="carousel-wrap"></div>
@@ -272,6 +313,38 @@
     <div class="modal-body" id="bonus-body"></div>
     <button class="modal-close" onclick="closeModal('modal-bonus')">Close</button>
   </div>
+</div>
+
+<!-- QR SHARE MODAL -->
+<div class="modal-backdrop" id="modal-share" onclick="backdropClose(event,'modal-share')">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Share Scoreboard</div>
+    <div class="modal-body">
+      <div id="qr-canvas-wrap"><div id="qr-box"></div></div>
+      <div class="qr-url" id="qr-url-text"></div>
+      <div class="qr-note">📸 Scan to see a live read-only scoreboard.<br>Tap <strong>Refresh</strong> anytime to update the QR.</div>
+      <div class="copy-confirm" id="copy-confirm"></div>
+      <div class="qr-actions">
+        <button class="btn-qr-refresh" onclick="openShareModal()">↺ Refresh</button>
+        <button class="btn-qr-copy" onclick="copyShareUrl()">Copy Link</button>
+      </div>
+    </div>
+    <button class="modal-close" onclick="closeModal('modal-share')">Close</button>
+  </div>
+</div>
+
+<!-- READ-ONLY SCREEN -->
+<div id="screen-readonly" class="screen">
+  <div class="ro-header">
+    <div class="ro-title">☠ Skull King ☠</div>
+    <div class="ro-round" id="ro-round-label"></div>
+  </div>
+  <div class="ro-snapshot">📷 Snapshot — scan QR again for latest</div>
+  <div id="ro-standings" class="ro-standings"></div>
+  <div class="ro-table-wrap"><table class="ro-table" id="ro-table"></table></div>
+  <div class="ro-footer" id="ro-footer"></div>
+  <div style="text-align:center"><button class="btn-ro-back" onclick="location.hash=''">← Back to my game</button></div>
 </div>
 
 <!-- CONFIRM MODAL -->
@@ -327,6 +400,8 @@ function loadState() {
 
 // ── INIT ──
 function init() {
+  // Read-only viewer mode takes priority
+  if (checkReadOnlyMode()) return;
   loadState();
   if (state.screen === 'game') {
     showScreen('game');
@@ -887,12 +962,177 @@ function doNewGame() {
   renderSetup();
 }
 
+// ── QR SHARE ──
+function buildSharePayload() {
+  const rounds = state.rounds.slice(0, state.round).map(round =>
+    round.map(pd => [pd.bid, pd.tricks, pd.bonus, pd.cannonball ? 1 : 0])
+  );
+  return {
+    v: 1,
+    r: state.round,
+    sc: state.scoring === 'skull_king' ? 0 : 1,
+    adv: state.advancedRules ? 1 : 0,
+    p: state.players,
+    d: rounds,
+    ts: Date.now()
+  };
+}
+
+function generateShareUrl() {
+  const payload = buildSharePayload();
+  const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+  const base = location.origin + location.pathname;
+  return base + '#view=' + encoded;
+}
+
+function openShareModal() {
+  const url = generateShareUrl();
+  // Update URL text
+  const short = url.length > 60 ? url.slice(0, 57) + '…' : url;
+  document.getElementById('qr-url-text').textContent = short;
+  document.getElementById('copy-confirm').textContent = '';
+  // Clear and regenerate QR
+  const box = document.getElementById('qr-box');
+  box.innerHTML = '';
+  new QRCode(box, {
+    text: url,
+    width: 220,
+    height: 220,
+    colorDark: '#1a0a00',
+    colorLight: '#f0ddb8',
+    correctLevel: QRCode.CorrectLevel.M
+  });
+  document.getElementById('modal-share').classList.add('open');
+}
+
+function copyShareUrl() {
+  const url = generateShareUrl();
+  navigator.clipboard.writeText(url).then(() => {
+    document.getElementById('copy-confirm').textContent = '✓ Link copied!';
+    setTimeout(() => { document.getElementById('copy-confirm').textContent = ''; }, 2500);
+  }).catch(() => {
+    // Fallback for older iOS
+    const ta = document.createElement('textarea');
+    ta.value = url; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+    document.body.removeChild(ta);
+    document.getElementById('copy-confirm').textContent = '✓ Link copied!';
+    setTimeout(() => { document.getElementById('copy-confirm').textContent = ''; }, 2500);
+  });
+}
+
+// ── READ-ONLY VIEW ──
+function checkReadOnlyMode() {
+  const hash = location.hash;
+  if (!hash.startsWith('#view=')) return false;
+  try {
+    const encoded = hash.slice(6);
+    const vs = JSON.parse(decodeURIComponent(escape(atob(encoded))));
+    renderReadOnly(vs);
+    showScreen('readonly');
+    return true;
+  } catch(e) {
+    console.error('Invalid share URL', e);
+    return false;
+  }
+}
+
+function calcScoreFromViewState(pd, round, scoring, adv) {
+  if (!pd || pd[0] === null || pd[0] === undefined) return null;
+  const [bid, tricks, bonus, cb] = pd;
+  const cards = round;
+  const diff = Math.abs(bid - tricks);
+  const correct = diff === 0;
+  if (scoring === 0) { // skull_king
+    const bidPts = bid === 0 ? (correct ? 10*cards : -10*cards) : (correct ? 20*bid : -10*diff);
+    return bidPts + (correct ? bonus : 0);
+  } else { // rascal
+    if (adv && cb) return correct ? (15*cards + bonus) : 0;
+    const mult = diff === 0 ? 1 : diff === 1 ? 0.5 : 0;
+    return Math.round(10*cards*mult + bonus*mult);
+  }
+}
+
+function renderReadOnly(vs) {
+  const { r, sc, adv, p: players, d: rounds, ts } = vs;
+  const numPlayers = players.length;
+  const scoring = sc; // 0=skull_king, 1=rascal
+
+  // Round label
+  document.getElementById('ro-round-label').textContent =
+    `Round ${r} of 10 · ${r} Card${r !== 1 ? 's' : ''} Dealt`;
+
+  // Running totals
+  const totals = players.map((_, pi) => {
+    let sum = 0;
+    for (let ri = 0; ri < rounds.length; ri++) {
+      const sc2 = calcScoreFromViewState(rounds[ri][pi], ri+1, scoring, adv);
+      if (sc2 !== null) sum += sc2;
+    }
+    return sum;
+  });
+
+  // Standings (sorted)
+  const sorted = players.map((name, i) => ({ name, score: totals[i], idx: i }))
+    .sort((a, b) => b.score - a.score);
+  const medals = ['🥇','🥈','🥉'];
+  let standHtml = '';
+  sorted.forEach((p, i) => {
+    standHtml += `<div class="ro-standing-row${i===0?' first':''}">
+      <span class="ro-rank">${medals[i] || (i+1)+'.'}</span>
+      <span class="ro-name">${escHtml(p.name)}</span>
+      <span class="ro-score">${p.score}</span>
+    </div>`;
+  });
+  document.getElementById('ro-standings').innerHTML = standHtml;
+
+  // Full table
+  let html = '<thead><tr><th>Rnd</th>';
+  players.forEach(name => {
+    html += `<th class="num">${escHtml(name.length > 8 ? name.slice(0,8)+'…' : name)}</th>`;
+  });
+  html += '</tr></thead><tbody>';
+
+  for (let ri = 0; ri < rounds.length; ri++) {
+    const isCur = ri + 1 === r;
+    html += `<tr class="${isCur ? 'cur' : ''}"><td>${ri+1}</td>`;
+    players.forEach((_, pi) => {
+      const sc2 = calcScoreFromViewState(rounds[ri][pi], ri+1, scoring, adv);
+      const disp = sc2 !== null ? sc2 : '—';
+      const cls = sc2 !== null && sc2 < 0 ? 'num neg' : 'num';
+      html += `<td class="${cls}">${disp}</td>`;
+    });
+    html += '</tr>';
+  }
+
+  // Totals row
+  html += '<tr class="total-row"><td>∑</td>';
+  players.forEach((_, pi) => {
+    const cls = totals[pi] < 0 ? 'num neg' : 'num gold';
+    html += `<td class="${cls}">${totals[pi]}</td>`;
+  });
+  html += '</tr></tbody>';
+  document.getElementById('ro-table').innerHTML = html;
+
+  // Footer timestamp
+  const t = new Date(ts);
+  const timeStr = t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  document.getElementById('ro-footer').textContent =
+    `Snapshot taken at ${timeStr} · Scan the QR code again for latest scores`;
+}
+
 // ── UTILS ──
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 // ── BOOT ──
+// Handle hash changes (e.g. viewer scans a new QR while on the page)
+window.addEventListener('hashchange', () => {
+  if (location.hash.startsWith('#view=')) checkReadOnlyMode();
+  else if (!location.hash) { location.reload(); }
+});
+
 init();
 </script>
 </body>
