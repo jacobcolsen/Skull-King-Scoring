@@ -600,8 +600,7 @@ function buildPlayerCard(name, playerIdx) {
   pcard.appendChild(nameEl);
 
   const pd = state.rounds[vr-1][playerIdx];
-  const bidVal = pd.bid !== null ? pd.bid : 0;
-  if (pd.bid === null) { state.rounds[vr-1][playerIdx].bid = 0; }
+  const bidVal = pd.bid !== null ? pd.bid : 0; // display 0 for null, but don't mutate state
 
   const disabled = isPast ? 'disabled' : '';
   const disabledAttr = isPast ? ' disabled' : '';
@@ -658,7 +657,8 @@ function buildPlayerCard(name, playerIdx) {
   const status = getBidStatus(state.rounds[vr-1][playerIdx], state.scoring, state.advancedRules);
 
   const statusHtml = status ? `<span class="badge ${status.cls}" id="bstatus-${playerIdx}">${status.label}</span>` : `<span id="bstatus-${playerIdx}"></span>`;
-  const scDisp = sc !== null ? sc : '—';
+  const isSkipped = sc === null && isPast; // past round with no bid entered = skipped
+  const scDisp = sc !== null ? sc : (isSkipped ? 0 : '—');
   const scClass = sc !== null && sc < 0 ? ' negative' : '';
 
   scoreBlock.innerHTML = `
@@ -709,7 +709,8 @@ function refreshPlayerCard(playerIdx) {
   const status = getBidStatus(pd, state.scoring, state.advancedRules);
 
   if (rscoreEl) {
-    rscoreEl.textContent = sc !== null ? sc : '—';
+    const isSkipped = sc === null && vr < state.round;
+    rscoreEl.textContent = sc !== null ? sc : (isSkipped ? 0 : '—');
     rscoreEl.className = 'score-val' + (sc !== null && sc < 0 ? ' negative' : '');
   }
   if (tscoreEl) {
@@ -953,7 +954,7 @@ function renderScoreboard() {
     html += `<tr class="${isCur ? 'cur-round' : ''}"><td>${r}</td>`;
     names.forEach((_, pi) => {
       const sc = calcRoundScore(state.rounds[r-1][pi], r, state.scoring, state.advancedRules);
-      const disp = sc !== null ? sc : '—';
+      const disp = sc !== null ? sc : (r < state.round ? 0 : '—');
       html += `<td class="${sc !== null && sc < 0 ? 'negative' : ''}">${disp}</td>`;
     });
     html += '</tr>';
